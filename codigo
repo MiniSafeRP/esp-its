@@ -1,0 +1,149 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Trails = {}
+local NameTags = {}
+
+local function CreateNameTag(player)
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+    if NameTags[player] then
+        NameTags[player]:Destroy()
+    end
+
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Name = "NameTag"
+    billboardGui.Adornee = humanoidRootPart
+    billboardGui.Size = UDim2.new(2, 0, 0.5, 0)
+    billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+    billboardGui.AlwaysOnTop = true
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Parent = billboardGui
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = player.Name
+    textLabel.TextColor3 = player.TeamColor.Color
+    textLabel.TextStrokeTransparency = 0.5
+    textLabel.TextScaled = true
+    textLabel.Font = Enum.Font.SourceSansBold
+
+    billboardGui.Parent = humanoidRootPart
+    NameTags[player] = billboardGui
+end
+
+local function UpdateESP()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local targetCharacter = player.Character
+            if targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
+                local targetHRP = targetCharacter.HumanoidRootPart
+
+                local highlight = targetCharacter:FindFirstChild("ESP_Highlight")
+                if not highlight then
+                    highlight = Instance.new("Highlight")
+                    highlight.Name = "ESP_Highlight"
+                    highlight.Parent = targetCharacter
+                    highlight.Adornee = targetCharacter
+                    highlight.FillTransparency = 0.5
+                    highlight.OutlineTransparency = 0
+                    highlight.OutlineColor = player.TeamColor.Color
+                    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                end
+
+                -- Criando ou atualizando o traço
+                if not Trails[player] then
+                    local trail = Instance.new("Part")
+                    trail.Size = Vector3.new(0.2, 0.2, 1)
+                    trail.Anchored = true
+                    trail.CanCollide = false
+                    trail.Material = Enum.Material.Neon
+                    trail.Color = player.TeamColor.Color
+                    trail.Transparency = 0.5
+                    trail.Parent = workspace
+                    Trails[player] = trail
+                end
+
+                local trail = Trails[player]
+                local startPos = LocalPlayer.Character.HumanoidRootPart.Position
+                local endPos = targetHRP.Position
+                local distance = (startPos - endPos).Magnitude
+
+                trail.Size = Vector3.new(0.2, 0.2, distance)
+                trail.Position = (startPos + endPos) / 2
+                trail.CFrame = CFrame.lookAt(startPos, endPos) * CFrame.new(0, 0, -distance / 2)
+
+                if not NameTags[player] then
+                    CreateNameTag(player)
+                end
+            end
+        end
+    end
+end
+
+-- Atualizar ESP com cada renderização
+local connection
+connection = RunService.RenderStepped:Connect(function()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        connection:Disconnect()
+        return
+    end
+    UpdateESP()
+end)
+
+-- Escutando quando um jogador entra no jogo e cria as tags/traços
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        CreateNameTag(player)
+
+        -- Criar o traço para o jogador que entrou
+        if Trails[player] then
+            Trails[player]:Destroy()
+            Trails[player] = nil
+        end
+        local trail = Instance.new("Part")
+        trail.Size = Vector3.new(0.2, 0.2, 1)
+        trail.Anchored = true
+        trail.CanCollide = false
+        trail.Material = Enum.Material.Neon
+        trail.Color = player.TeamColor.Color
+        trail.Transparency = 0.5
+        trail.Parent = workspace
+        Trails[player] = trail
+    end)
+end)
+
+-- Escutando quando um jogador sai do jogo para destruir as tags e traços
+Players.PlayerRemoving:Connect(function(player)
+    if NameTags[player] then
+        NameTags[player]:Destroy()
+        NameTags[player] = nil
+    end
+    if Trails[player] then
+        Trails[player]:Destroy()
+        Trails[player] = nil
+    end
+end)
+
+-- Detectando a morte de um jogador e reiniciando as tags e traços
+for _, player in ipairs(Players:GetPlayers()) do
+    player.CharacterAdded:Connect(function(character)
+        -- Criar tags e traços após o respawn
+        CreateNameTag(player)
+
+        if Trails[player] then
+            Trails[player]:Destroy()
+            Trails[player] = nil
+        end
+        local trail = Instance.new("Part")
+        trail.Size = Vector3.new(0.2, 0.2, 1)
+        trail.Anchored = true
+        trail.CanCollide = false
+        trail.Material = Enum.Material.Neon
+        trail.Color = player.TeamColor.Color
+        trail.Transparency = 0.5
+        trail.Parent = workspace
+        Trails[player] = trail
+    end)
+end
